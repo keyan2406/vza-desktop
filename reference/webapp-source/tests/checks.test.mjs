@@ -1,0 +1,18 @@
+import * as c from "../utils/import-checks.ts";
+let fails = 0; const ok = (n, cond) => { if (!cond) fails++; console.log(cond ? "OK   " : "FEHLER", n); };
+const st = (env) => Object.fromEntries(c.liveChecks(env).map((x) => [x.id, x.state]));
+const base = { supported: true, connected: false, permission: "unknown", live: false };
+ok("noch nicht geprüft: Browser unbekannt", st({ ...base, supported: null }).browser === "unknown");
+ok("Chrome ohne Ordner: Ordner offen, Zugriff offen, nichts läuft", JSON.stringify(st(base)) === '{"browser":"ok","folder":"todo","permission":"todo","running":"todo"}');
+ok("Firefox: Browser fehlgeschlagen, mit Hinweis auf die anderen Wege", st({ ...base, supported: false }).browser === "fail" && c.liveChecks({ ...base, supported: false })[0].hint.includes("Einmal auslesen"));
+ok("Firefox: die übrigen Punkte bleiben offen (nicht grün)", st({ ...base, supported: false, connected: true, permission: "granted" }).folder === "todo" && st({ ...base, supported: false, connected: true, permission: "granted" }).permission === "todo");
+ok("Ordner verbunden, Erlaubnis noch offen: Hinweis zum Neustart", st({ ...base, connected: true, permission: "prompt" }).permission === "todo" && c.liveChecks({ ...base, connected: true, permission: "prompt" })[2].hint.includes("Neustart"));
+ok("Ordner verbunden und erlaubt", JSON.stringify(st({ ...base, connected: true, permission: "granted" })) === '{"browser":"ok","folder":"ok","permission":"ok","running":"todo"}');
+ok("Zugriff abgelehnt: fehlgeschlagen, Hinweis auf die Seiteneinstellungen", st({ ...base, connected: true, permission: "denied" }).permission === "fail" && c.liveChecks({ ...base, connected: true, permission: "denied" })[2].hint.includes("Seiteneinstellungen"));
+ok("alles läuft", Object.values(st({ ...base, connected: true, permission: "granted", live: true })).every((s) => s === "ok"));
+ok("Ordner nicht verbunden: Zugriff wird nicht grün angezeigt, auch wenn ein alter Wert 'granted' ist", st({ ...base, connected: false, permission: "granted" }).permission === "todo");
+ok("bereit zum Starten", c.liveReady({ ...base, connected: true, permission: "granted" }) && c.liveReady({ ...base, connected: true, permission: "prompt" }) && c.liveReady({ ...base, connected: true, permission: "unknown" }));
+ok("nicht bereit: kein Browser-Support, kein Ordner, abgelehnt, nicht geprüft", !c.liveReady({ ...base, supported: false, connected: true }) && !c.liveReady(base) && !c.liveReady({ ...base, connected: true, permission: "denied" }) && !c.liveReady({ ...base, supported: null, connected: true }));
+ok("jeder Punkt hat Bezeichnung", c.liveChecks(base).every((x) => x.label.length > 3));
+console.log(fails === 0 ? "\nALLE TESTS BESTANDEN" : `\n${fails} FEHLER`);
+process.exit(fails === 0 ? 0 : 1);

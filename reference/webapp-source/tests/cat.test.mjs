@@ -1,0 +1,46 @@
+import { fileURLToPath } from "node:url";
+import fs from "node:fs";
+import * as c from "../utils/blueprint-category.ts";
+let fails = 0; const ok = (n, cond) => { if (!cond) fails++; console.log(cond ? "OK   " : "FEHLER", n); };
+const items = JSON.parse(fs.readFileSync(fileURLToPath(new URL("./fixtures/real_items.json", import.meta.url)), "utf8"));
+const by = {}; for (const i of items) (by[c.classify(i.name, i.ini)] ||= []).push(i.name);
+for (const [k, v] of Object.entries(by)) console.log(`  ${c.categoryLabel(k).padEnd(22)} ${String(v.length).padStart(2)}  z. B. ${v.slice(0, 3).join(" | ")}`);
+const cat = (n, ini) => c.classify(n, ini);
+// Stichproben aus deiner echten Datei
+ok("Helm = Rüstung", cat("Monde Helmet Hiro", "item_Name_kap_combat_heavy_helmet_02_08_01") === "ruestung");
+ok("Kern/Torso = Rüstung", cat("Antium Core Storm", "item_Name_qrt_specialist_heavy_core_01_01_10") === "ruestung");
+ok("Rucksack = Rüstung", cat("Testudo Backpack Combustion", "item_Name_qrt_combat_medium_backpack_01_01_02") === "ruestung");
+ok("Fluganzug = Rüstung", cat("Neutrino Racing Flight Suit BlackFire", "item_Name_mrai_flightsuit_01_07_12") === "ruestung");
+ok("Armor Arms = Rüstung", cat("Dust Devil Armor Arms", "item_Name_srvl_armor_heavy_arms_02_01_01") === "ruestung");
+ok("Gewehr = Waffen", cat('Parallax Energy Assault Rifle', "item_Namevolt_rifle_energy_01") === "waffen");
+ok("Gewehr-Variante = Waffen", cat('Parallax "Sunstone" Energy Assault Rifle', "item_Namevolt_rifle_energy_01_tint01") === "waffen");
+ok("Pistole = Waffen", cat('Pulse "Rouge" Pistol', "item_Namevolt_pistol_energy_01_tint02") === "waffen");
+ok("Schrotflinte = Waffen", cat("R97 Shotgun", "item_Namegmni_shotgun_ballistic_01") === "waffen");
+ok("Armbrust = Waffen", cat('Novian "Nighthunter" Crossbow', "item_Nameutfl_crossbow_ballistic_01_tint01") === "waffen");
+ok("Gewehr-Batterie = Magazine", cat("Parallax Rifle Battery (80 Cap)", "item_Namevolt_rifle_energy_01_mag") === "munition");
+ok("Schrotflinten-Magazin = Magazine", cat("R97 Shotgun Magazine (18 cap)", "item_Namegmni_shotgun_ballistic_01_mag") === "munition");
+ok("SMG-Batterie = Magazine", cat("Quartz Energy SMG Battery (45 cap)", "item_Namevolt_smg_energy_01_mag") === "munition");
+ok("Laserkanone = Schiffswaffen", cat("Omnisky VI Cannon", "item_NameAMRS_LaserCannon_S2") === "schiffswaffen");
+ok("Repeater = Schiffswaffen", cat("Attrition-2 Repeater", "item_NameHRST_LaserRepeater_S2") === "schiffswaffen");
+ok("Scattergun = Schiffswaffen", cat("Dominance-2 Scattergun", "item_NameHRST_LaserScattergun_S2") === "schiffswaffen");
+ok("Schild = Komponenten", cat("7CA 'Nargun'", "item_Name_SHLD_BEHR_S03_7CA") === "komponenten");
+ok("Radar = Komponenten", cat("Sens", "item_Name_RADR_GRNP_S00_Sens") === "komponenten");
+ok("Tankdüse = Komponenten", cat("Harkin", "item_fuelnozzle_GRIN_Safe_Name") === "komponenten" && cat("Bendix", "Nozzle_FuelGiver_SHIN_NozzleExpensiveFast_Name") === "komponenten");
+ok("nicht übersetzter Eintrag (Rucksack) = Rüstung", cat("@item_Name_cds_combat_superheavy_backpack_01_01_01", null) === "ruestung");
+ok("nicht übersetzter Eintrag (Anzug) = Rüstung", cat("@item_Name_cds_combat_superheavy_suit_01_01_01", "") === "ruestung");
+// Ohne Schlüssel (Log-Auslesen): nur über den Namen
+ok("ohne Schlüssel: Helm", cat("Defiance Helmet Tactical") === "ruestung");
+ok("ohne Schlüssel: Batterie vor Gewehr", cat("Parallax Rifle Battery (80 Cap)") === "munition");
+ok("ohne Schlüssel: Kanone", cat("Omnisky IX Cannon") === "schiffswaffen");
+ok("ohne Schlüssel: Gewehr", cat("Parallax Energy Assault Rifle") === "waffen");
+ok("ohne Schlüssel: unbekannt = Sonstiges", cat("Sens") === "sonstiges" && cat("Irgendwas Neues") === "sonstiges");
+ok("Name mit Zufallstreffer (Corehead) nicht als Rüstung", cat("Corehead Thing") === "sonstiges");
+// Von Hand gesetzt geht vor
+ok("Override gilt", c.effectiveCategory({ name: "Sens", ini_key: "item_Name_RADR_GRNP_S00_Sens", category: "waffen" }) === "waffen");
+ok("ungültiger Override wird ignoriert", c.effectiveCategory({ name: "Monde Helmet", ini_key: "item_Name_kap_combat_heavy_helmet_02_01_01", category: "unsinn" }) === "ruestung");
+ok("Bezeichnungen", c.categoryLabel("ruestung") === "Rüstung" && c.categoryLabel("x") === "Sonstiges");
+const total = Object.values(by).reduce((n, v) => n + v.length, 0);
+ok("alle 81 Einträge zugeordnet, nur wenige 'Sonstiges'", total === 81 && (by.sonstiges?.length ?? 0) <= 3);
+console.log("  Sonstiges:", (by.sonstiges ?? []).join(" | "));
+console.log(fails === 0 ? "\nALLE TESTS BESTANDEN" : `\n${fails} FEHLER`);
+process.exit(fails === 0 ? 0 : 1);
